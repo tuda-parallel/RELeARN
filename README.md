@@ -1,16 +1,10 @@
 # RELeARN
-
-RELeARN (REwiring of LARge-scale Neural networks) is a project developed at Technische Universität Darmstadt under the supervision of [Prof. Dr. Felix Wolf](https://www.informatik.tu-darmstadt.de/parallel/parallel_programming/index.en.jsp). It allows fast simulations of structural plasticity as described by Markus Butz-Ostendorf and Arjen van Ooyen in *A Simple Rule for Dendritic Spine and Axonal Bouton Formation Can Account for Cortical Reorganization after Focal Retinal Lesions*.
+The connectivity of the brain is constantly changing. Even in the mature brain, new connections between neurons are formed, and existing ones are deleted, a phenomenon called structural plasticity. 
+RELeARN (REwiring of LARge-scale Neural networks) as a neuron simulator enables fast simulation of structural plasticity as described by Markus Butz-Ostendorf and Arjen van Ooyen in [*A Simple Rule for Dendritic Spine and Axonal Bouton Formation Can Account for Cortical Reorganization after Focal Retinal Lesions*](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1003259) through an approximation that reduces the required computations from $\mathcal{O}(n^2)$ to $\mathcal{O}(n\log{n})$.
 
 ## Installation
 Using the project requires CMake and a C++ compiler capable of C++20.
 Optionally, you can use MPI and OpenMP to parallelize the computation.
-
-## Organisation
-
-The simulation is found in the subdirectory ./relearn/
-In ./graph/ is a tool that analyzes the generated networks with respect to different graph metrics
-./paper/ includes multiple publications which are relevant to the implemented algorithm and model
 
 ## Dependencies
 
@@ -28,6 +22,7 @@ In ./graph/ is a tool that analyzes the generated networks with respect to diffe
 * openucx/1.11.2
 
 ## Citation
+Please cite RELeARN in your publications if it helps your research:
 ```
 @article{rinke2018,
 author = {Rinke, Sebastian and Butz-Ostendorf, Markus and Hermanns, Marc-Andr{\'{e}} and Naveau, Mika{\"{e}}l and Wolf, Felix},
@@ -43,3 +38,4 @@ doi = {10.1016/j.jpdc.2017.11.019}
 ## Publications
 1) Rinke, S., Butz-Ostendorf, M., Hermanns, M.A., Naveau, M., & Wolf, F. (2018). _A Scalable Algorithm for Simulating the Structural Plasticity of the Brain_. Journal of Parallel and Distributed Computing, 120, 251–266. [PDF](https://apps.fz-juelich.de/jsc-pubsystem/aigaion/attachments/rinke_ea.pdf-5c72f91c90128cfe0433a70f61fa4693.pdf)
 2) Czappa, F., Geiß, A., & Wolf, F. (2023). _Simulating Structural Plasticity of the Brain more Scalable than Expected_. Journal of Parallel and Distributed Computing, 171, 24–27. [PDF](https://arxiv.org/pdf/2210.05267.pdf)
+
