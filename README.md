@@ -39,6 +39,9 @@ doi = {10.1016/j.jpdc.2017.11.019}
 }
 ```
 
+## Media coverage
+The RELeARN simulator was covered in the German TV show [SAT.1 Regionalmagazin für Rheinland-Pfalz und Hessen (July 18, 2019)](https://www.1730live.de/wissenschaftler-wollen-gehirn-nachbauen/).
+
 ## Publications
 1) Rinke, S., Butz-Ostendorf, M., Hermanns, M.A., Naveau, M., & Wolf, F. (2018). _A Scalable Algorithm for Simulating the Structural Plasticity of the Brain_. Journal of Parallel and Distributed Computing, 120, 251–266. [PDF](https://apps.fz-juelich.de/jsc-pubsystem/aigaion/attachments/rinke_ea.pdf-5c72f91c90128cfe0433a70f61fa4693.pdf)
 2) Czappa, F., Geiß, A., & Wolf, F. (2023). _Simulating Structural Plasticity of the Brain more Scalable than Expected_. Journal of Parallel and Distributed Computing, 171, 24–27. [PDF](https://arxiv.org/pdf/2210.05267.pdf)
