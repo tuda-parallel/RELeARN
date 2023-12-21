@@ -323,7 +323,7 @@ void Simulation::simulate(const step_type number_steps) {
     for (; step <= final_step_count; ++step) { // NOLINT(altera-id-dependent-backward-branch)
         for (const auto& [disable_step, disable_ids] : disable_interrupts | ranges::views::filter(equal_to(step), element<0>)) {
             LogFiles::write_to_file(LogFiles::EventType::Cout, true, "Disabling {} neurons in step {}", disable_ids.size(), disable_step);
-            const auto& [num_deleted_synapses, synapse_deletion_requests_outgoing] = neurons->disable_neurons(step, disable_ids, MPIWrapper::get_num_ranks());
+            const auto& [num_deleted_synapses, number_deleted_distant_out_axons, number_deleted_distant_in, number_deleted_in_edges_from_outside, number_deleted_out_edges_to_outside, number_deleted_out_edges_within, synapse_deletion_requests_outgoing] = neurons->disable_neurons(step, disable_ids, MPIWrapper::get_num_ranks());
             total_synapse_deletions += static_cast<int64_t>(num_deleted_synapses);
             const auto& synapse_deletion_requests_ingoing = MPIWrapper::exchange_requests(synapse_deletion_requests_outgoing);
             total_synapse_deletions += neurons->delete_disabled_distant_synapses(synapse_deletion_requests_ingoing, my_rank);

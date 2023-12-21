@@ -215,7 +215,7 @@ public:
      *      Can return an unitialized ID if there was no neuron to update.
      * @return The id
      */
-    constexpr NeuronID get_current_minimum() const noexcept {
+    [[nodiscard]] NeuronID get_current_minimum() const noexcept {
         return current_minimum;
     }
 
@@ -224,7 +224,7 @@ public:
      *      Can return an unitialized ID if there was no neuron to update.
      * @return The id
      */
-    constexpr NeuronID get_current_maximum() const noexcept {
+    [[nodiscard]] NeuronID get_current_maximum() const noexcept {
         return current_maximum;
     }
 

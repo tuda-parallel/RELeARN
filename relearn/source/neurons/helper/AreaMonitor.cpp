@@ -28,7 +28,8 @@
 #include <range/v3/view/map.hpp>
 #include <range/v3/view/transform.hpp>
 
-AreaMonitor::AreaMonitor(std::shared_ptr<Neurons> neurons, std::shared_ptr<GlobalAreaMapper> global_area_mapper, RelearnTypes::area_id area_id, RelearnTypes::area_name area_name,
+AreaMonitor::AreaMonitor(std::shared_ptr<Neurons> neurons, std::shared_ptr<GlobalAreaMapper> global_area_mapper,
+    RelearnTypes::area_id area_id, RelearnTypes::area_name area_name,
     int my_rank, const std::filesystem::path& path, bool monitor_connectivity)
     : neurons(neurons)
     , area_id(area_id)
@@ -68,29 +69,35 @@ void AreaMonitor::monitor_connectivity() {
         const auto other_area_id = global_area_mapper->get_area_id(rank_neuron_id);
 
         const auto signal_type = synapse.get_weight() > 0 ? SignalType::Excitatory : SignalType::Inhibitory;
+
         add_ingoing_connection({ other_rank, other_area_id, synapse.get_target(), signal_type }, synapse.get_weight());
     }
     Timers::stop_and_add(TimerRegion::AREA_MONITORS_DISTANT_EDGES);
-}
 
-void AreaMonitor::record_data(NeuronID neuron_id) {
     Timers::start(TimerRegion::AREA_MONITORS_DELETIONS);
 
     // Deletions
-    if (flag_monitor_connectivity) {
+    for (const auto& neuron_id : NeuronID::range(neurons->get_number_neurons())) {
+        if (neurons->local_area_translator->get_area_id_for_neuron_id(neuron_id.get_neuron_id()) != area_id) {
+            continue;
+        }
+
         const auto& deletions_in_step = neurons->extra_info->get_deletions_log(neuron_id);
         for (const auto& [other_neuron_id, weight] : deletions_in_step) {
             const auto other_area_id = global_area_mapper->get_area_id(other_neuron_id);
             const auto& other_rank = other_neuron_id.get_rank().get_rank();
 
             auto pair = std::make_pair(other_rank, other_area_id);
-            deletions[pair]++;
+            deletions[pair] += std::abs(weight);
             const auto signal_type = weight > 0 ? SignalType::Excitatory : SignalType::Inhibitory;
             remove_ingoing_connection(AreaConnection(other_rank, other_area_id, neuron_id, signal_type), weight);
         }
     }
 
     Timers::stop_and_add(TimerRegion::AREA_MONITORS_DELETIONS);
+}
+
+void AreaMonitor::record_data(NeuronID neuron_id) {
     Timers::start(TimerRegion::AREA_MONITORS_STATISTICS);
 
     // Store statistics
@@ -161,7 +168,8 @@ void AreaMonitor::write_data_to_file() {
             << rank << ":" << area_id << "in;"
             << rank << ":" << area_id << "del;";
     }
-    out << "Axons grown;Axons conn;Den ex grown;Den ex conn;Den inh grown;Den inh conn;Background;Syn input total;Syn input ex;Syn input inh;Calcium;Fire rate;Enabled neurons;";
+    out
+        << "Axons grown;Axons conn;Den ex grown;Den ex conn;Den inh grown;Den inh conn;Background;Syn input total;Syn input ex;Syn input inh;Calcium;Fire rate;Enabled neurons;";
     out << "\n";
 
     // Data
@@ -221,7 +229,8 @@ void AreaMonitor::request_data() const {
     Timers::stop_and_add(TimerRegion::AREA_MONITORS_DISTANT_EDGES);
 }
 
-void AreaMonitor::add_ingoing_connection(const AreaMonitor::AreaConnection& connection, const RelearnTypes::plastic_synapse_weight weight) {
+void AreaMonitor::add_ingoing_connection(const AreaMonitor::AreaConnection& connection,
+    const RelearnTypes::plastic_synapse_weight weight) {
     auto pair = std::make_pair(connection.from_rank, connection.from_area);
     auto& conn = connections[pair];
     if (connection.signal_type == SignalType::Excitatory) {
@@ -231,7 +240,8 @@ void AreaMonitor::add_ingoing_connection(const AreaMonitor::AreaConnection& conn
     }
 }
 
-void AreaMonitor::remove_ingoing_connection(const AreaMonitor::AreaConnection& connection, const RelearnTypes::plastic_synapse_weight weight) {
+void AreaMonitor::remove_ingoing_connection(const AreaMonitor::AreaConnection& connection,
+    const RelearnTypes::plastic_synapse_weight weight) {
     auto pair = std::make_pair(connection.from_rank, connection.from_area);
     auto& conn = connections[pair];
     if (connection.signal_type == SignalType::Excitatory) {
@@ -239,8 +249,10 @@ void AreaMonitor::remove_ingoing_connection(const AreaMonitor::AreaConnection& c
     } else {
         conn.den_inh -= std::abs(weight);
     }
-    RelearnException::check(conn.den_ex >= 0, "AreaMonitor::remove_ingoing_connection: Excitatory connections smaller 0");
-    RelearnException::check(conn.den_inh >= 0, "AreaMonitor::remove_ingoing_connection: Inhibitory connections smaller 0");
+    RelearnException::check(conn.den_ex >= 0,
+        "AreaMonitor::remove_ingoing_connection: Excitatory connections smaller 0");
+    RelearnException::check(conn.den_inh >= 0,
+        "AreaMonitor::remove_ingoing_connection: Inhibitory connections smaller 0");
 }
 
 void AreaMonitor::debug_checks() {
@@ -251,7 +263,9 @@ void AreaMonitor::debug_checks() {
     std::unordered_map<std::pair<size_t, size_t>, size_t, boost::hash<std::pair<size_t, size_t>>> in_connectivity_ex{};
     std::unordered_map<std::pair<size_t, size_t>, size_t, boost::hash<std::pair<size_t, size_t>>> in_connectivity_inh{};
 
-    auto add_to_map = [](std::unordered_map<std::pair<size_t, size_t>, size_t, boost::hash<std::pair<size_t, size_t>>>& map, const std::pair<size_t, size_t>& key, const size_t weight) {
+    auto add_to_map = [](
+                          std::unordered_map<std::pair<size_t, size_t>, size_t, boost::hash<std::pair<size_t, size_t>>>& map,
+                          const std::pair<size_t, size_t>& key, const size_t weight) {
         if (!map.contains(key)) {
             map.insert(std::make_pair(key, 0));
         }
@@ -277,7 +291,8 @@ void AreaMonitor::debug_checks() {
         }
 
         for (const auto& [source_neuron_id, weight] : local_in) {
-            const auto& other_area_id = neurons->local_area_translator->get_area_id_for_neuron_id(source_neuron_id.get_neuron_id());
+            const auto& other_area_id = neurons->local_area_translator->get_area_id_for_neuron_id(
+                source_neuron_id.get_neuron_id());
             const auto p = std::make_pair(my_rank, other_area_id);
             if (weight > 0) {
                 add_to_map(in_connectivity_ex, p, weight);
@@ -290,7 +305,13 @@ void AreaMonitor::debug_checks() {
     for (const auto& [key, connectivity] : connections) {
         const auto& [source_rank, source_area_id] = key;
 
-        RelearnException::check(connectivity.den_ex == in_connectivity_ex[key], "AreaMonitor::debug_checks: Unequal number of excitatory connections from ({},{}) to ({},{}): {} != {}", source_rank, source_area_id, my_rank, area_id, connectivity.den_ex, in_connectivity_ex[key]);
-        RelearnException::check(connectivity.den_inh == in_connectivity_inh[key], "AreaMonitor::debug_checks: Unequal number of inhibitory connections from ({},{}) to ({},{}): {} != {}", source_rank, source_area_id, my_rank, area_id, connectivity.den_inh, in_connectivity_inh[key]);
+        RelearnException::check(connectivity.den_ex == in_connectivity_ex[key],
+            "AreaMonitor::debug_checks: Unequal number of excitatory connections from ({},{}) to ({},{}): {} != {}",
+            source_rank, source_area_id, my_rank, area_id, connectivity.den_ex,
+            in_connectivity_ex[key]);
+        RelearnException::check(connectivity.den_inh == in_connectivity_inh[key],
+            "AreaMonitor::debug_checks: Unequal number of inhibitory connections from ({},{}) to ({},{}): {} != {}",
+            source_rank, source_area_id, my_rank, area_id, connectivity.den_inh,
+            in_connectivity_inh[key]);
     }
 }

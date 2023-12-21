@@ -35,8 +35,9 @@ concept has_member_get = requires(T value) {
 
 template <std::size_t I>
 inline constexpr auto element = []<typename T>
-    requires detail::has_adl_get<T> || detail::has_member_get<T>(T && tuple)
--> decltype(auto) {
+    requires detail::has_adl_get<T> || detail::has_member_get<T>
+(T&& tuple)
+    -> decltype(auto) {
     if constexpr (detail::has_adl_get<T>) {
         using std::get;
         return get<I>(std::forward<T>(tuple));
@@ -117,14 +118,14 @@ inline constexpr auto bit_not = []<std::regular T>(T rhs) constexpr {
 inline constexpr auto equal_to = []<std::equality_comparable T>(T rhs) constexpr {
     return
         [rhs]<std::regular U>
-        requires std::equality_comparable_with<U, T>(const U& lhs)
-    constexpr { return ranges::equal_to{}(lhs, rhs); };
+        requires std::equality_comparable_with<U, T>
+    (const U& lhs) constexpr { return ranges::equal_to{}(lhs, rhs); };
 };
 
 inline constexpr auto not_equal_to = []<std::regular T>(T rhs) constexpr {
     return [rhs]<std::regular U>
-        requires std::equality_comparable_with<U, T>(const U& lhs)
-    constexpr {
+        requires std::equality_comparable_with<U, T>
+    (const U& lhs) constexpr {
         return ranges::not_equal_to{}(lhs, rhs);
     };
 };
@@ -132,28 +133,28 @@ inline constexpr auto not_equal_to = []<std::regular T>(T rhs) constexpr {
 inline constexpr auto greater = []<std::regular T>(T rhs) constexpr {
     return
         [rhs]<std::regular U>
-        requires std::totally_ordered_with<U, T>(const U& lhs)
-    constexpr { return ranges::greater{}(lhs, rhs); };
+        requires std::totally_ordered_with<U, T>
+    (const U& lhs) constexpr { return ranges::greater{}(lhs, rhs); };
 };
 
 inline constexpr auto less = []<std::regular T>(T rhs) constexpr {
     return [rhs]<std::regular U>
-        requires std::totally_ordered_with<U, T>(const U& lhs)
-    constexpr { return ranges::less{}(lhs, rhs); };
+        requires std::totally_ordered_with<U, T>
+    (const U& lhs) constexpr { return ranges::less{}(lhs, rhs); };
 };
 
 inline constexpr auto greater_equal = []<std::regular T>(T rhs) constexpr {
     return [rhs]<std::regular U>
-        requires std::totally_ordered_with<U, T>(const U& lhs)
-    constexpr {
+        requires std::totally_ordered_with<U, T>
+    (const U& lhs) constexpr {
         return ranges::greater_equal{}(lhs, rhs);
     };
 };
 
 inline constexpr auto less_equal = []<std::regular T>(T rhs) constexpr {
     return [rhs]<std::regular U>
-        requires std::totally_ordered_with<U, T>(const U& lhs)
-    constexpr {
+        requires std::totally_ordered_with<U, T>
+    (const U& lhs) constexpr {
         return ranges::less_equal{}(lhs, rhs);
     };
 };
@@ -163,7 +164,7 @@ inline constexpr auto as_abs = [](const auto& val) constexpr {
 };
 
 template <typename T>
-inline constexpr auto construct = []<typename ValueType>(ValueType && val)
+inline constexpr auto construct = []<typename ValueType>(ValueType&& val)
     requires std::constructible_from<T, ValueType>
 {
     return T{ std::forward<ValueType>(val) };
@@ -172,28 +173,28 @@ inline constexpr auto construct = []<typename ValueType>(ValueType && val)
 template <typename Comparator = std::equal_to<>>
 inline constexpr auto pairwise_comparison =
     [comp = Comparator{}]<typename PairLikeType>
-    requires(std::tuple_size_v<PairLikeType> == 2) && std::relation<Comparator, std::tuple_element_t<0, PairLikeType>, std::tuple_element_t<1, PairLikeType>>(const PairLikeType& pair)
-{
+    requires(std::tuple_size_v<PairLikeType> == 2) && std::relation<Comparator, std::tuple_element_t<0, PairLikeType>, std::tuple_element_t<1, PairLikeType>>
+(const PairLikeType& pair) {
     return comp(element<0>(pair), element<1>(pair));
 };
 
 inline constexpr auto lookup =
     []<ranges::random_access_range T, typename Projection = std::identity>(
-        T && lookup_range_ref, Projection proj = {})
+        T&& lookup_range_ref, Projection proj = {})
     requires std::is_trivially_copy_constructible_v<Projection> && (std::is_lvalue_reference_v<T> || ranges::borrowed_range<T>)
 {
     if constexpr (std::is_const_v<T>) {
         return [&lookup_range_ref, proj]<typename IndexType>
-            requires std::regular_invocable<Projection, IndexType>(
-                const IndexType& index)
-        constexpr->decltype(auto) {
+            requires std::regular_invocable<Projection, IndexType>
+        (
+            const IndexType& index) constexpr -> decltype(auto) {
             return lookup_range_ref[std::invoke(proj, index)];
         };
     } else {
         return [&lookup_range_ref, proj]<typename IndexType>
-            requires std::regular_invocable<Projection, IndexType>(
-                const IndexType& index)
-        constexpr mutable->decltype(auto) {
+            requires std::regular_invocable<Projection, IndexType>
+        (
+            const IndexType& index) constexpr mutable -> decltype(auto) {
             return lookup_range_ref[std::invoke(proj, index)];
         };
     }

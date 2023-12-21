@@ -532,11 +532,11 @@ class NetworkGraph {
                     "NetworkGraph::add_edges: local_out_neighborhood is too small: {} vs {}", source_id,
                     neuron_distant_out_neighborhood.size());
 
-                auto& in_edges = neuron_local_in_neighborhood[local_target_id];
-                auto& out_edges = neuron_local_out_neighborhood[local_source_id];
+                auto& local_in_edges = neuron_local_in_neighborhood[local_target_id];
+                auto& local_out_edges = neuron_local_out_neighborhood[local_source_id];
 
-                add_edge<decltype(in_edges), NeuronID>(in_edges, source_id, weight);
-                add_edge<decltype(out_edges), NeuronID>(out_edges, target_id, weight);
+                add_edge<decltype(local_in_edges), NeuronID>(local_in_edges, source_id, weight);
+                add_edge<decltype(local_out_edges), NeuronID>(local_out_edges, target_id, weight);
             }
 
             for (const auto& [target_id, source_rni, weight] : in_edges) {

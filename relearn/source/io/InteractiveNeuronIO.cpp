@@ -10,6 +10,7 @@
 
 #include "InteractiveNeuronIO.h"
 
+#include "io/parser/NeuronIdParser.h"
 #include "io/parser/StimulusParser.h"
 #include "util/RelearnException.h"
 #include "util/NeuronID.h"
@@ -187,6 +188,51 @@ InteractiveNeuronIO::load_creation_interrupts(const std::filesystem::path& path_
         | ranges::views::filter(is_creation_delimiter)
         | ranges::views::transform([](const auto& values) { return std::pair{ std::get<1>(values), std::get<3>(values) }; })
         | ranges::to_vector;
+}
+
+std::vector<NeuronID>
+InteractiveNeuronIO::load_neuron_monitors(const std::filesystem::path& path_to_file, const std::shared_ptr<LocalAreaTranslator>& local_area_translator, const MPIRank& my_rank) {
+    std::ifstream file{ path_to_file };
+
+    const bool file_is_good = file.good();
+    const bool file_is_not_good = file.fail() || file.eof();
+
+    RelearnException::check(file_is_good && !file_is_not_good,
+        "InteractiveNeuronIO::load_neuron_monitors: Opening the file was not successful");
+
+    const auto parse_line = [my_rank, local_area_translator](const auto& line) {
+        std::stringstream sstream(line);
+
+        std::string rni_str{};
+
+        sstream >> rni_str;
+
+        const auto& rank_neuron_id_vector = StringUtil::split_string(rni_str, ':');
+        if (rank_neuron_id_vector.size() == 2) {
+            // Neuron has format <rank>:<neuron_id>
+            const int rank = std::stoi(rank_neuron_id_vector[0]);
+            if (rank == my_rank.get_rank()) {
+
+                const auto neuron_id = std::stoul(rank_neuron_id_vector[1]);
+                return std::unordered_set{ NeuronID{ neuron_id - 1 } };
+            }
+        } else {
+            // Neuron descriptor is an area name
+            if (local_area_translator->knows_area_name(line)) {
+                return local_area_translator->get_neuron_ids_in_area(
+                    local_area_translator->get_area_id_for_area_name(line));
+            }
+        }
+        return std::unordered_set<NeuronID>{};
+    };
+
+    auto neuron_ids = ranges::getlines(file)
+        | views::filter_not_comment_not_empty_line
+        | ranges::views::transform(parse_line)
+        | ranges::views::cache1
+        | ranges::views::join
+        | ranges::to_vector;
+    return NeuronIdParser::remove_duplicates_and_sort(neuron_ids);
 }
 
 RelearnTypes::stimuli_function_type InteractiveNeuronIO::load_stimulus_interrupts(

@@ -310,9 +310,15 @@ public:
      *      Returns a CommunicationMap containing the mpi requests for deleting distant connections on other ranks to the disabled neurons on this rank.
      * @param step The current simulation step
      * @exception Throws RelearnExceptions if something unexpected happens
-     * @return Pair of number of local synapse deletion and requests for deletions on other ranks
+     * @return Tuple of
+     * (1) number_deleted_distant_out_axons
+     * (2) number_deleted_distant_in
+     * (3) number_deleted_in_edges_from_outside
+     * (4) number_deleted_out_edges_to_outside
+     * (5) number_deleted_out_edges_within
+     * (6) requests for deletions on other ranks
      */
-    std::pair<size_t, CommunicationMap<SynapseDeletionRequest>> disable_neurons(step_type step, std::span<const NeuronID> local_neuron_ids, int num_ranks);
+    std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, CommunicationMap<SynapseDeletionRequest>> disable_neurons(step_type step, std::span<const NeuronID> disabled_neurons, int num_ranks);
 
     /**
      * @brief Enables all neurons with specified ids

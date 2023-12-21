@@ -133,10 +133,10 @@ void Neurons::check_signal_types(const std::shared_ptr<NetworkGraph> network_gra
     }
 }
 
-std::pair<size_t, CommunicationMap<SynapseDeletionRequest>> Neurons::disable_neurons(const step_type step, const std::span<const NeuronID> local_neuron_ids, const int num_ranks) {
-    extra_info->set_disabled_neurons(local_neuron_ids);
+std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, CommunicationMap<SynapseDeletionRequest>> Neurons::disable_neurons(const step_type step, const std::span<const NeuronID> disabled_neurons, const int num_ranks) {
+    extra_info->set_disabled_neurons(disabled_neurons);
 
-    neuron_model->disable_neurons(local_neuron_ids);
+    neuron_model->disable_neurons(disabled_neurons);
 
     std::vector<unsigned int> deleted_axon_connections(number_neurons, 0);
     std::vector<unsigned int> deleted_dend_ex_connections(number_neurons, 0);
@@ -155,7 +155,7 @@ std::pair<size_t, CommunicationMap<SynapseDeletionRequest>> Neurons::disable_neu
     const auto size_hint = std::min(number_neurons, number_neurons_type(num_ranks));
     CommunicationMap<SynapseDeletionRequest> synapse_deletion_requests_outgoing(num_ranks, size_hint);
 
-    for (const auto& neuron_id : local_neuron_ids) {
+    for (const auto& neuron_id : disabled_neurons) {
         RelearnException::check(neuron_id.get_neuron_id() < number_neurons,
             "Neurons::disable_neurons: There was a too large id: {} vs {}", neuron_id,
             number_neurons);
@@ -170,36 +170,39 @@ std::pair<size_t, CommunicationMap<SynapseDeletionRequest>> Neurons::disable_neu
             network_graph->add_synapse(PlasticLocalSynapse(target_neuron_id, neuron_id, -weight));
 
             // Shall target_neuron_id also be disabled? Important: Do not remove synapse twice in this case
-            const bool is_within = std::ranges::binary_search(local_neuron_ids, target_neuron_id);
+            const bool is_within = std::find(disabled_neurons.begin(), disabled_neurons.end(), target_neuron_id) != disabled_neurons.end();
             const auto local_target_neuron_id = target_neuron_id.get_neuron_id();
 
             if (weight > 0) {
                 if (is_within) {
-                    number_deleted_out_exc_edges_within++;
-                    deleted_axon_connections[neuron_id.get_neuron_id()]++;
-                    deleted_dend_ex_connections[local_target_neuron_id]++;
-
+                    number_deleted_out_exc_edges_within += weight;
+                    deleted_axon_connections[neuron_id.get_neuron_id()] += weight;
+                    deleted_dend_ex_connections[local_target_neuron_id] += weight;
+                    extra_info->mark_deletion(target_neuron_id, RankNeuronId{ MPIWrapper::get_my_rank(), neuron_id }, weight);
                 } else {
-                    deleted_dend_ex_connections[local_target_neuron_id]++;
-                    number_deleted_out_exc_edges_to_outside++;
+                    deleted_dend_ex_connections[local_target_neuron_id] += weight;
+                    number_deleted_out_exc_edges_to_outside += weight;
+                    extra_info->mark_deletion(target_neuron_id, RankNeuronId{ MPIWrapper::get_my_rank(), neuron_id }, weight);
                 }
             } else {
                 if (is_within) {
-                    number_deleted_out_inh_edges_within++;
-                    deleted_axon_connections[neuron_id.get_neuron_id()]++;
-                    deleted_dend_in_connections[local_target_neuron_id]++;
+                    number_deleted_out_inh_edges_within += -weight;
+                    deleted_axon_connections[neuron_id.get_neuron_id()] += -weight;
+                    deleted_dend_in_connections[local_target_neuron_id] += -weight;
+                    extra_info->mark_deletion(target_neuron_id, RankNeuronId{ MPIWrapper::get_my_rank(), neuron_id }, weight);
 
                 } else {
-                    deleted_dend_in_connections[local_target_neuron_id]++;
-                    number_deleted_out_inh_edges_to_outside++;
+                    deleted_dend_in_connections[local_target_neuron_id] += -weight;
+                    number_deleted_out_inh_edges_to_outside += -weight;
+                    extra_info->mark_deletion(target_neuron_id, RankNeuronId{ MPIWrapper::get_my_rank(), neuron_id }, weight);
                 }
             }
         }
 
         for (const auto& [target_neuron_id, weight] : distant_out_edges) {
             network_graph->add_synapse(PlasticDistantOutSynapse(target_neuron_id, neuron_id, -weight));
-            deleted_axon_connections[neuron_id.get_neuron_id()]++;
-            number_deleted_distant_out_axons++;
+            deleted_axon_connections[neuron_id.get_neuron_id()] += std::abs(weight);
+            number_deleted_distant_out_axons += std::abs(weight);
             const auto signal_type = weight > 0 ? SignalType::Excitatory : SignalType::Inhibitory;
             synapse_deletion_requests_outgoing.append(target_neuron_id.get_rank(), { neuron_id, target_neuron_id.get_neuron_id(), ElementType::Axon, signal_type });
         }
@@ -207,7 +210,7 @@ std::pair<size_t, CommunicationMap<SynapseDeletionRequest>> Neurons::disable_neu
 
     size_t number_deleted_in_edges_from_outside = 0;
 
-    for (const auto& neuron_id : local_neuron_ids) {
+    for (const auto& neuron_id : disabled_neurons) {
         const auto [local_in_edges_ref, _1] = network_graph->get_local_in_edges(neuron_id);
         const auto [distant_in_edges_ref, _2] = network_graph->get_distant_in_edges(neuron_id);
 
@@ -217,16 +220,17 @@ std::pair<size_t, CommunicationMap<SynapseDeletionRequest>> Neurons::disable_neu
         for (const auto& [source_neuron_id, weight] : local_in_edges) {
             network_graph->add_synapse(PlasticLocalSynapse(neuron_id, source_neuron_id, -weight));
 
-            deleted_axon_connections[source_neuron_id.get_neuron_id()]++;
+            deleted_axon_connections[source_neuron_id.get_neuron_id()] += std::abs(weight);
 
-            const bool is_within = std::ranges::binary_search(local_neuron_ids, source_neuron_id);
+            const bool is_within = std::find(disabled_neurons.begin(), disabled_neurons.end(), source_neuron_id) != disabled_neurons.end();
 
             if (is_within) {
                 RelearnException::fail(
                     "Neurons::disable_neurons: While disabling neurons, found a within-in-edge that has not been deleted");
             } else {
-                number_deleted_in_edges_from_outside++;
+                number_deleted_in_edges_from_outside += std::abs(weight);
             }
+            extra_info->mark_deletion(neuron_id, RankNeuronId{ MPIWrapper::get_my_rank(), source_neuron_id }, weight);
         }
 
         for (const auto& [source_neuron_id, weight] : distant_in_edges) {
@@ -236,25 +240,26 @@ std::pair<size_t, CommunicationMap<SynapseDeletionRequest>> Neurons::disable_neu
             synapse_deletion_requests_outgoing.append(source_neuron_id.get_rank(), { neuron_id, source_neuron_id.get_neuron_id(), ElementType::Dendrite, signal_type });
 
             if (weight > 0) {
-                deleted_dend_ex_connections[neuron_id.get_neuron_id()]++;
-                number_deleted_distant_in_exc++;
+                deleted_dend_ex_connections[neuron_id.get_neuron_id()] += weight;
+                number_deleted_distant_in_exc += weight;
             } else {
-                deleted_dend_in_connections[neuron_id.get_neuron_id()]++;
-                number_deleted_distant_in_inh++;
+                deleted_dend_in_connections[neuron_id.get_neuron_id()] += -weight;
+                number_deleted_distant_in_inh += -weight;
             }
+            extra_info->mark_deletion(neuron_id, source_neuron_id, weight);
         }
     }
 
     const auto number_deleted_edges_within = number_deleted_out_inh_edges_within + number_deleted_out_exc_edges_within;
 
-    axons->update_after_deletion(deleted_axon_connections, local_neuron_ids);
-    dendrites_exc->update_after_deletion(deleted_dend_ex_connections, local_neuron_ids);
-    dendrites_inh->update_after_deletion(deleted_dend_in_connections, local_neuron_ids);
+    axons->update_after_deletion(deleted_axon_connections, disabled_neurons);
+    dendrites_exc->update_after_deletion(deleted_dend_ex_connections, disabled_neurons);
+    dendrites_inh->update_after_deletion(deleted_dend_in_connections, disabled_neurons);
 
     neuron_model->notify_of_plasticity_change(step);
 
     LogFiles::print_message_rank(MPIRank::root_rank(),
-        "Deleted {} in-edges with and ({}, {}) out-edges (exc., inh.) within the deleted portion",
+        "Deleted {} in-edges and ({}, {}) out-edges (exc., inh.) within the deleted portion",
         number_deleted_edges_within,
         number_deleted_out_exc_edges_within,
         number_deleted_out_inh_edges_within);
@@ -276,11 +281,15 @@ std::pair<size_t, CommunicationMap<SynapseDeletionRequest>> Neurons::disable_neu
         number_deleted_out_exc_edges_within + number_deleted_out_exc_edges_to_outside,
         number_deleted_out_inh_edges_within + number_deleted_out_inh_edges_to_outside);
 
-    const auto deleted_connections = number_deleted_distant_out_axons + number_deleted_distant_in_inh + number_deleted_distant_in_exc
+    const auto deleted_connections_sum = number_deleted_distant_out_axons + number_deleted_distant_in_inh + number_deleted_distant_in_exc
         + number_deleted_in_edges_from_outside + number_deleted_out_inh_edges_to_outside + number_deleted_out_exc_edges_to_outside
         + number_deleted_out_exc_edges_within + number_deleted_out_inh_edges_within;
 
-    return std::make_pair(deleted_connections, synapse_deletion_requests_outgoing);
+    const auto number_deleted_distant_in = number_deleted_distant_in_exc + number_deleted_distant_in_inh;
+    const auto number_deleted_out_edges_to_outside = number_deleted_out_inh_edges_to_outside + number_deleted_out_exc_edges_to_outside;
+    const auto number_deleted_out_edges_within = number_deleted_out_inh_edges_within + number_deleted_out_exc_edges_within;
+
+    return std::make_tuple(deleted_connections_sum, number_deleted_distant_out_axons, number_deleted_distant_in, number_deleted_in_edges_from_outside, number_deleted_out_edges_to_outside, number_deleted_out_edges_within, synapse_deletion_requests_outgoing);
 }
 
 void Neurons::create_neurons(const number_neurons_type creation_count) {

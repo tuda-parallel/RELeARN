@@ -469,8 +469,8 @@ int main(int argc, char** argv) {
     double min_calcium_inhibitory_dendrites{ SynapticElements::default_eta_Dendrites_inh };
     app.add_option("--min-calcium-inhibitory-dendrites", min_calcium_inhibitory_dendrites, "The minimum intercellular calcium for inhibitory dendrites to grow. Default is 0.0");
 
-    std::string neuron_monitors_description{};
-    auto* const monitor_option = app.add_option("--neuron-monitors", neuron_monitors_description,
+    std::string neuron_monitors_file{};
+    auto* const monitor_option = app.add_option("--neuron-monitors", neuron_monitors_file,
         "The description which neurons to monitor. Format is <mpi_rank>:<neuron_id>;<mpi_rank>:<neuron_id>;...<area_name>;... where <mpi_rank> can be -1 to indicate \"on every rank\"");
 
     auto* const flag_monitor_all = app.add_flag("--neuron-monitors-all", "Monitors all neurons.");
@@ -947,8 +947,8 @@ int main(int argc, char** argv) {
         for (const auto& neuron_id : NeuronID::range(number_local_neurons)) {
             sim.register_neuron_monitor(neuron_id);
         }
-    } else {
-        const auto& my_neuron_ids_to_monitor = MonitorParser::parse_my_ids(neuron_monitors_description, my_rank, sim.get_neurons()->get_local_area_translator());
+    } else if (!neuron_monitors_file.empty()) {
+        const auto& my_neuron_ids_to_monitor = InteractiveNeuronIO::load_neuron_monitors(neuron_monitors_file, sim.get_neurons()->get_local_area_translator(), my_rank);
         for (const auto& neuron_id : my_neuron_ids_to_monitor) {
             sim.register_neuron_monitor(neuron_id);
         }

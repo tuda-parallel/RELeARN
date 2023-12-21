@@ -33,7 +33,6 @@ constexpr inline bool is_barnes_hut(const AlgorithmEnum algorithm_enum) {
         || algorithm_enum == AlgorithmEnum::BarnesHutInverted;
 }
 
-
 inline std::string stringify(const AlgorithmEnum& algorithm_enum) {
     switch (algorithm_enum) {
     case AlgorithmEnum::Naive:
